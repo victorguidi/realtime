@@ -2,10 +2,10 @@ package main
 
 // TODO: add a mutex to protect the map
 // TODO: find a way to add TLS support
-// TODO: add a way to close the connection from the server side
-// TODO: add a way to authenticate the client
+// TODO: implement sessions
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,14 +16,20 @@ import (
 
 type Server struct {
 	// serverId string
-	// serverToken string
+	serverToken string
 	// private bool
 	conns map[*websocket.Conn]bool
 }
 
+type User struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 func NewServer() *Server {
 	return &Server{
-		conns: make(map[*websocket.Conn]bool),
+		conns:       make(map[*websocket.Conn]bool),
+		serverToken: "hello",
 	}
 }
 
@@ -38,19 +44,49 @@ func (s *Server) handleWSOrderbook(ws *websocket.Conn) {
 }
 
 func (s *Server) handleWSOrderbookWithAuth(ws *websocket.Conn) {
-	fmt.Println("ws.Config().Header:", ws.Config().Header)
-	userToken := ws.Config().Header.Get("User-Token")
-	if !s.validateUser(userToken) {
-		fmt.Println("invalid user token", userToken)
-		ws.Close()
-		return
+	h := ws.Request().Header.Get("Sec-Websocket-Protocol")
+	if h == s.serverToken {
+		buf := make([]byte, 1024)
+		ws.Write([]byte("Connection Open, validating user"))
+		n, err := ws.Read(buf)
+		if err != nil {
+			ws.Write([]byte("The json was not correct"))
+			ws.Close()
+			return
+		}
+
+		user := User{}
+		err = json.Unmarshal(buf[:n], &user)
+		if err != nil {
+			ws.Write([]byte("The json was not correct"))
+			ws.Close()
+			return
+		}
+		if user.Password == "123" {
+			for {
+				n, err := ws.Read(buf)
+				if err != nil {
+					ws.Write([]byte("Something went wrong with the message"))
+					ws.Close()
+					return
+				}
+				if string(buf[:n]) == "1" {
+					ws.Write([]byte("Thanks for connecting"))
+					ws.Close()
+					return
+				}
+				payload := fmt.Sprintf("orderbook data -> %d\n", time.Now().UnixNano())
+				ws.Write([]byte(payload))
+				time.Sleep(2 * time.Second)
+			}
+		} else {
+			ws.Write([]byte("404"))
+		}
+	} else {
+		ws.Write([]byte("404"))
 	}
-	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
-	for {
-		payload := fmt.Sprintf("orderbook data -> %d\n", time.Now().UnixNano())
-		ws.Write([]byte(payload))
-		time.Sleep(2 * time.Second)
-	}
+	ws.Close()
+	return
 }
 
 func (s *Server) validateUser(userToken string) bool {
