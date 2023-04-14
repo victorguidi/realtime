@@ -1,15 +1,18 @@
 package main
 
 // TODO: add a mutex to protect the map
-// TODO: find a way to add TLS support
+// TODO: find a way to add TLS support (Done?)
 // TODO: implement sessions
+// TODO: Implement the api server, in order to login the users
 
 import (
+	// "crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io"
+	"log"
 	"net/http"
-	"time"
+	// "os"
+	// "time"
 
 	"golang.org/x/net/websocket"
 )
@@ -18,28 +21,24 @@ type Server struct {
 	// serverId string
 	serverToken string
 	// private bool
-	conns map[*websocket.Conn]bool
+	conns map[User]bool
 }
 
 type User struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	connInfo *websocket.Conn
+}
+
+type Message struct {
+	to  string
+	msg []byte
 }
 
 func NewServer() *Server {
 	return &Server{
-		conns:       make(map[*websocket.Conn]bool),
+		conns:       make(map[User]bool),
 		serverToken: "hello",
-	}
-}
-
-func (s *Server) handleWSOrderbook(ws *websocket.Conn) {
-	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
-
-	for {
-		payload := fmt.Sprintf("orderbook data -> %d\n", time.Now().UnixNano())
-		ws.Write([]byte(payload))
-		time.Sleep(2 * time.Second)
 	}
 }
 
@@ -55,7 +54,9 @@ func (s *Server) handleWSOrderbookWithAuth(ws *websocket.Conn) {
 			return
 		}
 
-		user := User{}
+		user := User{
+			connInfo: ws,
+		}
 		err = json.Unmarshal(buf[:n], &user)
 		if err != nil {
 			ws.Write([]byte("The json was not correct"))
@@ -63,7 +64,11 @@ func (s *Server) handleWSOrderbookWithAuth(ws *websocket.Conn) {
 			return
 		}
 		if user.Password == "123" {
+			// We should use a mutex here to protect the map
+			s.conns[user] = true
+
 			for {
+
 				n, err := ws.Read(buf)
 				if err != nil {
 					ws.Write([]byte("Something went wrong with the message"))
@@ -75,9 +80,13 @@ func (s *Server) handleWSOrderbookWithAuth(ws *websocket.Conn) {
 					ws.Close()
 					return
 				}
-				payload := fmt.Sprintf("orderbook data -> %d\n", time.Now().UnixNano())
-				ws.Write([]byte(payload))
-				time.Sleep(2 * time.Second)
+
+				m := Message{
+					to:  "test",
+					msg: buf[:n],
+				}
+
+				s.readLoop(&m)
 			}
 		} else {
 			ws.Write([]byte("404"))
@@ -89,36 +98,11 @@ func (s *Server) handleWSOrderbookWithAuth(ws *websocket.Conn) {
 	return
 }
 
-func (s *Server) validateUser(userToken string) bool {
-	if userToken == "123" {
-		return true
-	}
-	return false
-}
-
-func (s *Server) handleWS(ws *websocket.Conn) {
-	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
-
-	// We should use a mutex here to protect the map
-	s.conns[ws] = true
-
-	s.readLoop(ws)
-}
-
-func (s *Server) readLoop(ws *websocket.Conn) {
-	buf := make([]byte, 1024)
-	for {
-		n, err := ws.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			fmt.Println("error reading from client:", err)
-			continue
+func (s *Server) readLoop(msg *Message) {
+	for c := range s.conns {
+		if c.Username == msg.to {
+			c.connInfo.Write(msg.msg)
 		}
-		msg := buf[:n]
-
-		s.broadcast(msg)
 	}
 }
 
@@ -128,15 +112,69 @@ func (s *Server) broadcast(b []byte) {
 			if _, err := ws.Write(b); err != nil {
 				fmt.Println("error writing to client:", err)
 			}
-		}(ws)
+		}(ws.connInfo)
 	}
 }
 
 func main() {
+
 	server := NewServer()
-	http.Handle("/ws", websocket.Handler(server.handleWS))
-	http.Handle("/ws/orderbook", websocket.Handler(server.handleWSOrderbook))
-	http.Handle("/ws/auth/orderbook", websocket.Handler(server.handleWSOrderbookWithAuth))
-	http.ListenAndServe(":8080", nil)
+	// http.Handle("/ws", websocket.Handler(server.handleWS))
+	// http.Handle("/ws/orderbook", websocket.Handler(server.handleWSOrderbook))
+	http.Handle("/wss/auth/orderbook", websocket.Handler(server.handleWSOrderbookWithAuth))
+	// http.Handle("/ws/", websocket.Handler(server.handleWSOverTLS))
+	log.Fatal(http.ListenAndServeTLS(":8080", "./selfCertificate/server.crt", "./selfCertificate/server.key", nil))
 
 }
+
+// func (s *Server) handleWS(ws *websocket.Conn) {
+// 	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
+//
+// 	user := User{
+// 		Username: "test",
+// 		Password: "123",
+// 		connInfo: ws,
+// 	}
+//
+// 	s.conns[user] = true
+//
+// 	buf := make([]byte, 1024)
+// 	for {
+// 		n, err := ws.Read(buf)
+// 		if err != nil {
+// 			ws.Write([]byte("Something went wrong with the message"))
+// 			ws.Close()
+// 			return
+// 		}
+//
+// 		m := Message{
+// 			to:  "victor",
+// 			msg: buf[:n],
+// 		}
+//
+// 		s.readLoop(&m)
+// 	}
+//
+// }
+
+// func (s *Server) handleWSOrderbook(ws *websocket.Conn) {
+// 	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
+//
+// 	for {
+// 		payload := fmt.Sprintf("orderbook data -> %d\n", time.Now().UnixNano())
+// 		ws.Write([]byte(payload))
+// 		time.Sleep(2 * time.Second)
+// 	}
+// }
+
+// func (s *Server) handleWSOverTLS(ws *websocket.Conn) {
+//
+// 	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
+//
+// 	for {
+// 		payload := fmt.Sprintf("orderbook data -> %d\n", time.Now().UnixNano())
+// 		ws.Write([]byte(payload))
+// 		time.Sleep(2 * time.Second)
+// 	}
+//
+// }
