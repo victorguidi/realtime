@@ -3,7 +3,7 @@ package main
 // TODO: add a mutex to protect the map
 // TODO: find a way to add TLS support (Done?)
 // TODO: implement sessions
-// TODO: Implement the api server, in order to login the users
+// TODO: Implement the api server, in order to login the users and save the sessions
 
 import (
 	// "crypto/x509"
@@ -119,43 +119,11 @@ func (s *Server) broadcast(b []byte) {
 func main() {
 
 	server := NewServer()
-	// http.Handle("/ws", websocket.Handler(server.handleWS))
 	// http.Handle("/ws/orderbook", websocket.Handler(server.handleWSOrderbook))
 	http.Handle("/wss/auth/orderbook", websocket.Handler(server.handleWSOrderbookWithAuth))
-	// http.Handle("/ws/", websocket.Handler(server.handleWSOverTLS))
 	log.Fatal(http.ListenAndServeTLS(":8080", "./selfCertificate/server.crt", "./selfCertificate/server.key", nil))
 
 }
-
-// func (s *Server) handleWS(ws *websocket.Conn) {
-// 	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
-//
-// 	user := User{
-// 		Username: "test",
-// 		Password: "123",
-// 		connInfo: ws,
-// 	}
-//
-// 	s.conns[user] = true
-//
-// 	buf := make([]byte, 1024)
-// 	for {
-// 		n, err := ws.Read(buf)
-// 		if err != nil {
-// 			ws.Write([]byte("Something went wrong with the message"))
-// 			ws.Close()
-// 			return
-// 		}
-//
-// 		m := Message{
-// 			to:  "victor",
-// 			msg: buf[:n],
-// 		}
-//
-// 		s.readLoop(&m)
-// 	}
-//
-// }
 
 // func (s *Server) handleWSOrderbook(ws *websocket.Conn) {
 // 	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
@@ -165,16 +133,4 @@ func main() {
 // 		ws.Write([]byte(payload))
 // 		time.Sleep(2 * time.Second)
 // 	}
-// }
-
-// func (s *Server) handleWSOverTLS(ws *websocket.Conn) {
-//
-// 	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
-//
-// 	for {
-// 		payload := fmt.Sprintf("orderbook data -> %d\n", time.Now().UnixNano())
-// 		ws.Write([]byte(payload))
-// 		time.Sleep(2 * time.Second)
-// 	}
-//
 // }
