@@ -1,5 +1,6 @@
 #!/bin/bash
 
+mkdir ./selfCertificate/ || exit
 cd ./selfCertificate/ || exit
 echo "creating server.key"
 openssl genrsa -out server.key 2048
