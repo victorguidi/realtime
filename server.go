@@ -3,7 +3,9 @@ package main
 import (
 	// "crypto/x509"
 	"encoding/json"
+	"fmt"
 	"log"
+	"time"
 
 	// "fmt"
 	"net/http"
@@ -24,6 +26,7 @@ type User struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	connInfo *websocket.Conn
+	Sessions []int `json:"sessions"`
 }
 
 type Message struct {
@@ -68,11 +71,16 @@ func (s *Server) handleRegisterNewUser(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
-	// Implement on database
-	// s.Users = append(s.Users, user)
-	// json.NewEncoder(w).Encode(user)
+	err = s.store.CreateUser(&user)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	json.NewEncoder(w).Encode(user)
 }
 
 func (s *Server) handleCreateNewSession(w http.ResponseWriter, r *http.Request) {
@@ -95,17 +103,19 @@ func (s *Server) handleCreateNewSession(w http.ResponseWriter, r *http.Request) 
 		state:        true,
 	}
 
-	// s.Sessions = append(s.Sessions, session)
+	err = s.store.CreateSession(&session)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+	}
 
 	json.NewEncoder(w).Encode(&session)
 }
 
-func (s *Server) handleAddUsersToSession(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUserSessions(w http.ResponseWriter, r *http.Request) {
 
 	type Response struct {
-		SessionId string `json:"sessionId"`
-		Username  string `json:"username"`
-		Password  string `json:"password"`
+		SessionId int `json:"sessionId"`
+		UserId    int `json:"userId"`
 	}
 
 	var resp Response
@@ -114,56 +124,63 @@ func (s *Server) handleAddUsersToSession(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusBadGateway)
 	}
 
-	user := User{
-		Username: resp.Username,
-		Password: resp.Password,
-	}
-
-	// for _, session := range s.Sessions {
-	// 	if session.SessionId == resp.SessionId {
-	// 		session.conns[user] = true
-	// 	}
-	// }
-
-	json.NewEncoder(w).Encode(&user)
-}
-
-func (s *Server) handleUpgradeToWsSession(w http.ResponseWriter, r *http.Request) {
-
-	if r.Header.Get("Upgrade") != "websocket" {
-		http.Error(w, "Upgrade to Websocket required", http.StatusBadRequest)
-	}
-
-	hijack, ok := w.(http.Hijacker)
-	if !ok {
-		http.Error(w, "Hijacking is not supported", http.StatusInternalServerError)
-	}
-	conn, _, err := hijack.Hijack()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
-	type Response struct {
-		SessionId string `json:"sessionId"`
-		Username  string `json:"username"`
-		Password  string `json:"password"`
-	}
-
-	var resp Response
-	err = json.NewDecoder(r.Body).Decode(&resp)
+	err = s.store.AddSessionToUser(resp.UserId, resp.SessionId)
 	if err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 	}
 
-	// wsHandler := func(ws *websocket.Conn) {
-	// 	for session := range s.Sessions {
-	// 		ws.Write([]byte("Connection established"))
-	// 		_ = session
-	// 	}
-	// }
-	// websocket.Handler(wsHandler).ServeHTTP(w, r)
+	json.NewEncoder(w).Encode(&resp)
+}
 
-	conn.Close()
+func (s *Server) handleGetUsers(w http.ResponseWriter, r *http.Request) {
+
+	users, err := s.store.GetAllUsers()
+	if err != nil {
+		log.Fatal(err)
+		w.WriteHeader(http.StatusBadGateway)
+	}
+	json.NewEncoder(w).Encode(&users)
+
+}
+
+func (s *Server) handleUpgradeToWsSession(ws *websocket.Conn) {
+	// TODO: Spin up a new go connection that will handle new connection
+	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
+
+	// if ws.Request().Header.Get("sessionId") != "1" {
+	// 	log.Fatal("What")
+	// }
+	//
+	// if ws.Request().Header.Get("sessionToken") != "123" {
+	// 	log.Fatal("What")
+	// }
+	//
+	// if ws.Request().Header.Get("Upgrade") != "websocket" {
+	// 	log.Fatal("What")
+	// }
+
+	for {
+		payload := fmt.Sprintf("orderbook data -> %d\n", time.Now().UnixNano())
+		ws.Write([]byte(payload))
+		time.Sleep(2 * time.Second)
+	}
+
+	// type Response struct {
+	// 	SessionId    int    `json:"sessionId"`
+	// 	SessionToken string `json:"sessionToken"`
+	// }
+	//
+	// var resp Response
+	// err := json.NewDecoder(r.Body).Decode(&resp)
+	// if err != nil {
+	// 	w.WriteHeader(http.StatusBadGateway)
+	// }
+	//
+	// session, err := s.store.GetSession(resp.SessionId)
+}
+
+func (s *Server) handleWSConnection(ws *websocket.Conn) {
+
 }
 
 // func (s *Session) broadcast(b []byte) {

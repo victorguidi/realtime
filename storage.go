@@ -2,6 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
+	"log"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -17,6 +20,8 @@ type Storage interface {
 	GetAllSessions() ([]*Session, error)
 	DeleteUser(int) error
 	DeleteSession(int) error
+	AddSessionToUser(int, int) error
+	RemoveSessionFromUser(int, int) error
 }
 
 type Database struct {
@@ -65,21 +70,37 @@ func (d *Database) createTables() error {
 }
 
 func (d *Database) GetAllUsers() ([]*User, error) {
-	query := "SELECT * FROM users"
+	query := "SELECT u.id, u.username, u.password, us.session_id FROM users u INNER JOIN user_session us ON u.id = us.user_id"
 	rows, err := d.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
+	type Response struct {
+		userId     int
+		username   string
+		password   string
+		sesssionId int
+	}
+
 	users := make([]*User, 0)
 	for rows.Next() {
-		user := new(User)
-		err := rows.Scan(&user.ID, &user.Username, &user.Password)
+		resp := new(Response)
+		err := rows.Scan(&resp.userId, &resp.username, &resp.password, &resp.sesssionId)
 		if err != nil {
+			log.Fatal(err)
 			return nil, err
 		}
-		users = append(users, user)
+		fmt.Println(resp.sesssionId)
+		user := User{
+			ID:       resp.userId,
+			Username: resp.username,
+			Password: resp.password,
+			Sessions: make([]int, 0),
+		}
+		user.Sessions = append(user.Sessions, resp.sesssionId)
+		users = append(users, &user)
 	}
 	if err = rows.Err(); err != nil {
 		return nil, err
@@ -110,11 +131,59 @@ func (d *Database) GetAllSessions() ([]*Session, error) {
 	return sessions, nil
 }
 
+func (d *Database) AddSessionToUser(userId, sessionId int) error {
+
+	query := "INSERT INTO user_session (user_id, session_id, created_at, updated_at) SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT id FROM user_session WHERE user_id = ? AND session_id = ?)"
+	stmt, err := d.db.Prepare(query)
+	if err != nil {
+		return err
+	}
+
+	current_timestamp := time.Now()
+
+	_, err = stmt.Exec(userId, sessionId, current_timestamp, current_timestamp, userId, sessionId)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Database) RemoveSessionFromUser(userId, sessionId int) error {
+	return nil
+}
+
 func (d *Database) CreateUser(u *User) error {
+	current_timestamp := time.Now()
+
+	query := "INSERT INTO users (username, password, created_at, updated_at) VALUES(?, ?, ?, ?)"
+	stmt, err := d.db.Prepare(query)
+	if err != nil {
+		return err
+	}
+
+	_, err = stmt.Exec(u.Username, u.Password, current_timestamp, current_timestamp)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (d *Database) CreateSession(s *Session) error {
+	current_timestamp := time.Now()
+
+	query := "INSERT INTO sessions (sessionName, sessionToken, created_at, updated_at) VALUES(?, ?, ?, ?)"
+	stmt, err := d.db.Prepare(query)
+	if err != nil {
+		return err
+	}
+
+	_, err = stmt.Exec(s.SessionName, s.SessionToken, current_timestamp, current_timestamp)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -131,7 +200,20 @@ func (d *Database) GetUser(id int) (*User, error) {
 }
 
 func (d *Database) GetSession(id int) (*Session, error) {
-	return nil, nil
+
+	query := "SELECT id, sessionToken FROM sessions WHERE id = ?"
+	stmt, err := d.db.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+
+	session := new(Session)
+	err = stmt.QueryRow(id).Scan(&session.ID, &session.SessionToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return session, nil
 }
 
 func (d *Database) DeleteUser(id int) error {

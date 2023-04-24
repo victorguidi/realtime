@@ -5,7 +5,7 @@ GOFLAGS := -v
 BACKEND_DIR := ./
 
 # Define the build targets
-all:check create-db backend-build
+all:check create-db create-cert backend-build
 
 # Test if golang and nodejs are installed
 check:
@@ -28,4 +28,4 @@ run: all
 clean:
 	@rm -rf $(BACKEND_DIR)/bin/*
 
-.PHONY: all create-db backend-build run clean
+.PHONY: all create-db create-cert backend-build run clean
