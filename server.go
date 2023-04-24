@@ -144,7 +144,7 @@ func (s *Server) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpgradeToWsSession(ws *websocket.Conn) {
-	// TODO: Spin up a new go connection that will handle new connection
+	// TODO: Spin up a new go connection that will handle new connections
 	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
 
 	// if ws.Request().Header.Get("sessionId") != "1" {

@@ -4,6 +4,8 @@ import (
 	"golang.org/x/net/websocket"
 	"log"
 	"net/http"
+
+	"golang.org/x/net/websocket"
 )
 
 // TODO: add a mutex to protect the map
