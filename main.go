@@ -1,7 +1,6 @@
 package main
 
 import (
-	"golang.org/x/net/websocket"
 	"log"
 	"net/http"
 
@@ -20,7 +19,7 @@ func main() {
 	}
 	store.Init()
 
-	server := NewServer(":8080", store)
+	server := NewServer(":3000", store)
 
 	// // http.Handle("/ws/orderbook", websocket.Handler(server.handleWSOrderbook))
 	// // http.Handle("/wss/auth/orderbook", websocket.Handler(server.handleWSOrderbookWithAuth))
@@ -30,6 +29,7 @@ func main() {
 	http.HandleFunc("/api/registerUser", server.handleRegisterNewUser)
 	http.HandleFunc("/api/registerSession", server.handleCreateNewSession)
 	http.HandleFunc("/api/registerUserToSession", server.handleUserSessions)
-	http.Handle("/wss/login", websocket.Handler(server.handleUpgradeToWsSession))
+	http.Handle("/wss/login", websocket.Handler(server.handleWs))
 	log.Fatal(http.ListenAndServeTLS(server.listenAddr, "./selfCertificate/server.crt", "./selfCertificate/server.key", nil))
+	// log.Fatal(http.ListenAndServe(server.listenAddr, nil))
 }
