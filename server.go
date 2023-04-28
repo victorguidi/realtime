@@ -233,6 +233,14 @@ func (s *Session) readLoop(ws *websocket.Conn) {
 	}
 }
 
+func (s *Session) sendPing(ws *websocket.Conn) {
+
+	for {
+		ws.Write([]byte("hey"))
+	}
+
+}
+
 func (s *Session) broadcast(m *Message) {
 
 	for ws := range s.conns {
