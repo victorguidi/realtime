@@ -54,7 +54,19 @@ func NewServer(listenAddr string, store Storage) *Server {
 	}
 }
 
+func (s *Server) enableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	(*w).WriteHeader(http.StatusOK)
+}
+
 func (s *Server) handleGetOpenSessions(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		s.enableCors(&w)
+		return
+	}
+	s.enableCors(&w)
 	type Response struct {
 		Sessions []*Session `json:"sessions"`
 	}
@@ -64,10 +76,16 @@ func (s *Server) handleGetOpenSessions(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	response.Sessions = sessions
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(&response)
 }
 
 func (s *Server) handleRegisterNewUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		s.enableCors(&w)
+		return
+	}
+	s.enableCors(&w)
 
 	var user User
 	err := json.NewDecoder(r.Body).Decode(&user)
@@ -82,10 +100,16 @@ func (s *Server) handleRegisterNewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
 }
 
 func (s *Server) handleCreateNewSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		s.enableCors(&w)
+		return
+	}
+	s.enableCors(&w)
 
 	type Response struct {
 		SessionId    string `json:"sessionId"`
@@ -110,10 +134,16 @@ func (s *Server) handleCreateNewSession(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(&session)
 }
 
 func (s *Server) handleUserSessions(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		s.enableCors(&w)
+		return
+	}
+	s.enableCors(&w)
 
 	type Response struct {
 		SessionId int `json:"sessionId"`
@@ -131,18 +161,67 @@ func (s *Server) handleUserSessions(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(&resp)
 }
 
+func (s *Server) handleLoginUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		s.enableCors(&w)
+		return
+	}
+	s.enableCors(&w)
+
+	type Response struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	var resp Response
+	err := json.NewDecoder(r.Body).Decode(&resp)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Fatal(err)
+	}
+
+	user, err := s.store.GetUserByName(resp.Username)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	if user.Password != resp.Password {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	type responseBack struct {
+		Token int   `json:"token"`
+		User  *User `json:"user"`
+	}
+
+	var response responseBack
+	response.Token = user.ID
+	response.User = user
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(&response)
+}
+
 func (s *Server) handleGetUsers(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		s.enableCors(&w)
+		return
+	}
+	s.enableCors(&w)
 
 	users, err := s.store.GetAllUsers()
 	if err != nil {
 		log.Fatal(err)
 		w.WriteHeader(http.StatusBadGateway)
 	}
-	json.NewEncoder(w).Encode(&users)
 
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(&users)
 }
 
 func (s *Server) handleWs(ws *websocket.Conn) {

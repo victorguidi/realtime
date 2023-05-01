@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"time"
 
@@ -15,6 +14,7 @@ type Storage interface {
 	UpdateUser(int) error
 	UpdateSession(int) error
 	GetUser(int) (*User, error)
+	GetUserByName(string) (*User, error)
 	GetSession(int) (*Session, error)
 	GetAllUsers() ([]*User, error)
 	GetAllSessions() ([]*Session, error)
@@ -92,7 +92,6 @@ func (d *Database) GetAllUsers() ([]*User, error) {
 			log.Fatal(err)
 			return nil, err
 		}
-		fmt.Println(resp.sesssionId)
 		user := User{
 			ID:       resp.userId,
 			Username: resp.username,
@@ -109,7 +108,7 @@ func (d *Database) GetAllUsers() ([]*User, error) {
 }
 
 func (d *Database) GetAllSessions() ([]*Session, error) {
-	query := "SELECT * FROM sessions"
+	query := "SELECT id, sessionName, created_at, updated_at FROM sessions"
 	rows, err := d.db.Query(query)
 	if err != nil {
 		return nil, err
@@ -119,7 +118,7 @@ func (d *Database) GetAllSessions() ([]*Session, error) {
 	sessions := make([]*Session, 0)
 	for rows.Next() {
 		session := new(Session)
-		err := rows.Scan(&session.ID, &session.SessionName, &session.SessionToken, &session.Created_at, &session.Updated_at)
+		err := rows.Scan(&session.ID, &session.SessionName, &session.Created_at, &session.Updated_at)
 		if err != nil {
 			return nil, err
 		}
@@ -197,6 +196,22 @@ func (d *Database) UpdateSession(id int) error {
 
 func (d *Database) GetUser(id int) (*User, error) {
 	return nil, nil
+}
+func (d *Database) GetUserByName(username string) (*User, error) {
+
+	query := "SELECT id, username, password FROM users WHERE username = ?"
+	stmt, err := d.db.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+
+	user := new(User)
+	err = stmt.QueryRow(username).Scan(&user.ID, &user.Username, &user.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
 
 func (d *Database) GetSession(id int) (*Session, error) {
