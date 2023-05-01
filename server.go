@@ -58,7 +58,6 @@ func (s *Server) enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-	(*w).WriteHeader(http.StatusOK)
 }
 
 func (s *Server) handleGetOpenSessions(w http.ResponseWriter, r *http.Request) {
@@ -229,6 +228,7 @@ func (s *Server) handleWs(ws *websocket.Conn) {
 	fmt.Println("new incoming connection from client:", ws.RemoteAddr())
 
 	h := ws.Request().Header.Get("Sec-Websocket-Protocol")
+	fmt.Println(h)
 	id, err := strconv.Atoi(h)
 	if err != nil {
 		ws.Write([]byte("Something went wrong reading the session Id"))
@@ -246,9 +246,18 @@ func (s *Server) handleWs(ws *websocket.Conn) {
 		session.state = true
 		s.sessions = append(s.sessions, session)
 	} else {
-		for _, s := range s.sessions {
-			if s.ID == id {
-				session = s
+		for _, sess := range s.sessions {
+			if sess.ID == id {
+				session = sess
+			} else {
+				session, err = s.store.GetSession(id)
+				if err != nil {
+					ws.Write([]byte("There is no session with this ID"))
+					ws.Close()
+				}
+				session.conns = make(map[*SessionUser]bool)
+				session.state = true
+				s.sessions = append(s.sessions, session)
 			}
 		}
 	}

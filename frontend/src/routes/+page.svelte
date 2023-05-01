@@ -50,7 +50,7 @@
 	const sessionToken = writable<string>('');
 
 	function openConnection(): void {
-		socket = new WebSocket('wss://localhost:8080/wss/login', ['1']);
+		socket = new WebSocket('wss://localhost:8080/wss/login', [$id.toString()]);
 		socket.addEventListener('open', () => {
 			socket.send(
 				JSON.stringify({
@@ -131,6 +131,7 @@
 									})
 								);
 								id.set(0);
+								messages.set([]);
 							}}>leave</button
 						>
 					{/if}

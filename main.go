@@ -9,7 +9,7 @@ import (
 
 // TODO: add a mutex to protect the map
 // TODO: find a way to add TLS support (Done?)
-// TODO: implement sessions
+// TODO: implement user authentication with JWT
 
 func main() {
 
