@@ -1,7 +1,9 @@
 <script lang="ts">
+	// TODO: Finish style for the pages
+	// TODO: Implement session creation
+
 	import { onMount } from 'svelte';
 
-	//TODO: Add a router page to login
 	import { writable } from 'svelte/store';
 
 	type Sessions = {
@@ -14,9 +16,15 @@
 		selected: boolean;
 	};
 
-	const user = writable<number | null>(0 || null);
+	type Message = {
+		where?: string;
+		from: string | number;
+		message: string;
+	};
 
+	const user = writable<number | null>(0 || null);
 	const sessions = writable<Sessions[]>([]);
+
 	onMount(async () => {
 		if (sessionStorage.getItem('token') === null) {
 			window.location.href = '/login';
@@ -30,11 +38,6 @@
 			.catch((err) => console.log(err));
 	});
 
-	type Message = {
-		where?: string;
-		from: string | number;
-		message: string;
-	};
 	let message: Message;
 	let id = writable<number>(0);
 	let messages = writable<Message[]>([]);
