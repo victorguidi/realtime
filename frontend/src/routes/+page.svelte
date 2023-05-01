@@ -1,4 +1,5 @@
 <script lang="ts">
+	//TODO: Add a router page to login
 	import { writable } from 'svelte/store';
 
 	type Message = {
@@ -20,7 +21,6 @@
 	});
 
 	function openConnection(id: number): void {
-		console.log(id);
 		socket = new WebSocket('wss://localhost:3000/wss/login', ['1']);
 		socket.addEventListener('open', function (event) {
 			socket.send(
@@ -74,7 +74,7 @@
 		</div>
 		<div class="flex flex-col bg-zinc-900 w-5/6 h-full justify-around p-4 relative">
 			<div class="flex flex-row p-4 w-full h-full pr-6">
-				<div class="flex flex-col w-1/2 h-full">
+				<div class="flex flex-col w-1/2 h-full items-start">
 					{#each $messages as msg}
 						{#if msg.from == sessionId}
 							<div class="flex justify-end rounded-md p-2 h-24" />
@@ -82,7 +82,7 @@
 						{/if}
 						{#if msg.from != sessionId}
 							<div
-								class="flex items-center bg-indigo-800 max-w-prose rounded-md p-2 h-24 max-h-full"
+								class="flex items-center bg-indigo-800 min-w-[20%] max-w-prose rounded-md p-2 h-24 max-h-full"
 							>
 								<p class="text-white break-words">{msg.message}</p>
 							</div>
@@ -96,7 +96,7 @@
 					{/each}
 				</div>
 				<div />
-				<div class="flex flex-col w-1/2 h-full items-end">
+				<div class="flex flex-col w-1/2 h-full items-end min-w-1/4">
 					{#each $messages as msg}
 						{#if msg.from != sessionId}
 							<div class="flex justify-end rounded-md p-2 h-24" />
@@ -104,7 +104,7 @@
 						{/if}
 						{#if msg.from == sessionId}
 							<div
-								class="flex items-center bg-indigo-800 max-w-prose rounded-md p-2 h-24 max-h-full"
+								class="flex items-center bg-indigo-800 min-w-[20%] max-w-prose rounded-md p-2 h-24 max-h-full"
 							>
 								<p class="text-white break-words">{msg.message}</p>
 							</div>
