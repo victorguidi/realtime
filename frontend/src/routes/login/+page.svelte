@@ -29,6 +29,7 @@
 				} else {
 					sessionStorage.setItem('token', data.token);
 					sessionStorage.setItem('user', JSON.stringify(data.user));
+					sessionStorage.setItem('authToken', data.authToken);
 					window.location.href = '/';
 				}
 			})

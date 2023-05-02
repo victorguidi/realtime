@@ -2,14 +2,13 @@ package main
 
 import (
 	"log"
+	"mime"
 	"net/http"
 
 	"golang.org/x/net/websocket"
 )
 
 // TODO: add a mutex to protect the map
-// TODO: find a way to add TLS support (Done?)
-// TODO: implement user authentication with JWT
 
 func main() {
 
@@ -21,10 +20,12 @@ func main() {
 
 	server := NewServer(":8080", store)
 
-	// // http.Handle("/ws/orderbook", websocket.Handler(server.handleWSOrderbook))
-	// // http.Handle("/wss/auth/orderbook", websocket.Handler(server.handleWSOrderbookWithAuth))
-
-	http.HandleFunc("/api/getSessions", server.handleGetOpenSessions)
+	mime.AddExtensionType(".js", "application/javascript")
+	http.Handle("/", http.FileServer(http.Dir("static")))
+	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "static/login.html")
+	})
+	http.HandleFunc("/api/getSessions", withJWTAuth(server.handleGetOpenSessions))
 	http.HandleFunc("/api/getUsers", server.handleGetUsers)
 	http.HandleFunc("/api/registerUser", server.handleRegisterNewUser)
 	http.HandleFunc("/api/registerSession", server.handleCreateNewSession)
@@ -32,5 +33,4 @@ func main() {
 	http.HandleFunc("/api/login", server.handleLoginUser)
 	http.Handle("/wss/login", websocket.Handler(server.handleWs))
 	log.Fatal(http.ListenAndServeTLS(server.listenAddr, "./selfCertificate/server.crt", "./selfCertificate/server.key", nil))
-	// log.Fatal(http.ListenAndServe(server.listenAddr, nil))
 }

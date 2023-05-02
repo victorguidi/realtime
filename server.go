@@ -4,11 +4,13 @@ import (
 	// "crypto/x509"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/net/websocket"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/golang-jwt/jwt/v4"
+	"golang.org/x/net/websocket"
 )
 
 type Server struct {
@@ -60,6 +62,38 @@ func (s *Server) enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 }
 
+func withJWTAuth(handleFunc http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		token, err := jwt.Parse(authHeader, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+
+			return []byte("secret"), nil
+		})
+
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+			fmt.Println(claims["foo"], claims["nbf"])
+		} else {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		handleFunc(w, r)
+	}
+}
+
 func (s *Server) handleGetOpenSessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		s.enableCors(&w)
@@ -89,6 +123,13 @@ func (s *Server) handleRegisterNewUser(w http.ResponseWriter, r *http.Request) {
 	var user User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	user.Password, err = hashPassword(user.Password)
+	if err != nil {
+		log.Fatal(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -165,8 +206,8 @@ func (s *Server) handleUserSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLoginUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "OPTIONS" {
-		s.enableCors(&w)
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 	s.enableCors(&w)
@@ -188,17 +229,30 @@ func (s *Server) handleLoginUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
-	if user.Password != resp.Password {
+	unhashedPass, err := unhashPassword(user.Password, resp.Password)
+	if err != nil {
+		log.Fatal(err)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	if !unhashedPass {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 
 	type responseBack struct {
-		Token int   `json:"token"`
-		User  *User `json:"user"`
+		AuthToken string `json:"authToken"`
+		Token     int    `json:"token"`
+		User      *User  `json:"user"`
 	}
 
+	authToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"id":       user.ID,
+		"username": user.Username,
+	}).SignedString([]byte("secret"))
+
 	var response responseBack
+	response.AuthToken = authToken
 	response.Token = user.ID
 	response.User = user
 

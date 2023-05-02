@@ -29,7 +29,12 @@
 		if (sessionStorage.getItem('token') === null) {
 			window.location.href = '/login';
 		}
-		await fetch('https://localhost:8080/api/getSessions')
+		await fetch('https://localhost:8080/api/getSessions', {
+			method: 'GET',
+			headers: {
+				Authorization: sessionStorage.getItem('authToken') || ''
+			}
+		})
 			.then((res) => res.json())
 			.then((data) => {
 				sessions.set(data.sessions);

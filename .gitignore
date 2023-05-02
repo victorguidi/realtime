@@ -1,2 +1,4 @@
 selfCertificate
 databases/*.db
+frontend/static
+static
